@@ -1,95 +1,81 @@
-# Daily Paper Digest (GitHub Actions)
+# Daily Paper Digest (Zotero Similarity + Multi-source)
 
-Automated daily paper digest with email delivery.
-
-Supported sources:
+This project sends a daily email digest of new papers from:
 - arXiv
 - medRxiv
 - PubMed
-- Google Scholar (via SerpAPI)
+- Google Scholar (SerpAPI)
 
-## Deploy to GitHub
+Core logic:
+- Build an interest profile from your Zotero library.
+- Fetch candidate papers from each platform.
+- Rank/filter by similarity to your Zotero profile.
+- Keep manual query support as source scope constraints.
 
-1. Push this folder to a GitHub repository.
-2. Open `Settings -> Secrets and variables -> Actions`.
-3. Fill Variables and Secrets below.
-4. Run workflow `Daily Paper Digest` once with `workflow_dispatch`.
+## Retrieval Strategy
+
+- `ARXIV_QUERY`: scope control (for example categories like `cs.AI+cs.LG+...`).
+- `MEDRXIV_QUERY`: optional category scope (for example `category:...`).
+- `PUBMED_QUERY` / `SCHOLAR_QUERY`:
+  - if set: used directly;
+  - if empty and Zotero is configured: auto-generated seed queries from Zotero profile.
+- medRxiv with empty query + Zotero enabled:
+  - crawl recent medRxiv papers in date window and rank by similarity.
+
+## Deploy
+
+1. Push repository to GitHub.
+2. Configure `Settings -> Secrets and variables -> Actions`.
+3. Run workflow `Daily Paper Digest` manually once.
 
 Workflow file: `.github/workflows/daily-paper.yml`
 
-## Variables (non-secret)
-
-Required query config:
-- Use source-specific variables:
-  - `ARXIV_QUERY`
-  - `MEDRXIV_QUERY`
-  - `PUBMED_QUERY`
-  - `SCHOLAR_QUERY`
-- Optional fallback:
-  - `TOPIC_QUERY` (used only when a source-specific query is empty)
-
-Query splitting rule:
-- Multiple independent queries are separated by semicolon `;`.
-- `+` is kept as part of one query expression (not split).
-
-Other variables:
-- `ENABLE_SOURCES` (default: `arxiv,medrxiv,pubmed,scholar`)
-- `DAYS_BACK` (default: `1`)
-- `MAX_RESULTS_PER_QUERY` (default: `20`)
-- `MAX_TOTAL_RESULTS` (default: `60`)
-- `REPORT_TIMEZONE` (default: `Asia/Shanghai`)
-- `REQUEST_TIMEOUT` (default: `20`)
-- `SEND_EMPTY_DIGEST` (default: `false`)
-- `DRY_RUN` (default: `false`)
-- `USER_AGENT` (optional)
-- `PUSH_REPORT_TO_REPO` (optional, set `true` to commit `outputs/` back to repo)
-
-## Secrets
+## Required Secrets
 
 - `SMTP_SERVER`
 - `SMTP_PORT`
 - `SMTP_USERNAME`
 - `SMTP_PASSWORD`
 - `EMAIL_SENDER`
-- `EMAIL_RECEIVERS` (comma-separated)
-- `NCBI_API_KEY` (optional)
-- `SERPAPI_API_KEY` (optional, required only for Scholar source)
+- `EMAIL_RECEIVERS`
 
-## Source-specific query examples
+Optional secrets:
+- `NCBI_API_KEY`
+- `SERPAPI_API_KEY`
+- `ZOTERO_API_KEY` (needed for private Zotero library; optional for public library)
 
-- `ARXIV_QUERY`:
-  - `cat:cs.AI+OR+cat:cs.LG+OR+cat:cs.CL+OR+cat:physics.med-ph`
-  - `all:"medical image segmentation"`
-- `MEDRXIV_QUERY`:
-  - `category:epidemiology+infectious_diseases`
-  - `long covid biomarker`
-- `PUBMED_QUERY`:
-  - `("machine learning"[Title/Abstract]) AND ("radiology"[Title/Abstract])`
-  - `("Neoplasms"[MeSH Terms]) AND ("multi-omics"[Title/Abstract])`
-- `SCHOLAR_QUERY`:
-  - `"clinical foundation model" OR "medical multimodal model"`
+## Recommended Variables
 
-## Local run (optional)
+Scope queries:
+- `ARXIV_QUERY=cs.AI+cs.LG+cs.CL+cs.MA+cs.HC+cs.SD+physics.med-ph`
+- `MEDRXIV_QUERY=category:otolaryngology+sports_medicine+geriatric_medicine+cardiovascular_medicine+rehabilitation_medicine_and_physical_therapy+respiratory_medicine`
+- `PUBMED_QUERY=`
+- `SCHOLAR_QUERY=`
 
-```bash
-python -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt
-python main.py
-```
+Runtime:
+- `ENABLE_SOURCES=arxiv,medrxiv,pubmed,scholar`
+- `DAYS_BACK=7`
+- `MAX_RESULTS_PER_QUERY=20`
+- `MAX_TOTAL_RESULTS=80`
+- `REPORT_TIMEZONE=Asia/Shanghai`
+- `REQUEST_TIMEOUT=30`
+- `SEND_EMPTY_DIGEST=true`
+- `DRY_RUN=false`
+- `PUSH_REPORT_TO_REPO=false`
 
-On Windows PowerShell:
-
-```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-python main.py
-```
+Zotero:
+- `ZOTERO_LIBRARY_TYPE=user` (`user` or `group`)
+- `ZOTERO_LIBRARY_ID=<your zotero user/group id>`
+- `ZOTERO_COLLECTION_KEY=` (optional)
+- `ZOTERO_MAX_ITEMS=200`
+- `ZOTERO_SEED_QUERY_COUNT=6`
+- `ZOTERO_SEED_TERMS_PER_QUERY=4`
+- `SIMILARITY_THRESHOLD=0.03`
+- `SIMILARITY_MIN_SHARED_TOKENS=1`
+- `SIMILARITY_REFERENCE_MAX=120`
 
 ## Notes
 
-- Google Scholar has no stable official public API. This project uses SerpAPI.
-- Deduplication uses DOI first, then normalized title.
-- Reports are generated under `outputs/YYYY-MM-DD.md` and `outputs/YYYY-MM-DD.html`.
-
+- If both source query and Zotero are configured, source query controls retrieval scope and Zotero controls similarity filtering.
+- If no papers survive similarity threshold, report can be empty. Use `SEND_EMPTY_DIGEST=true` to still receive email.
+- Reports are saved to `outputs/YYYY-MM-DD.md` and `outputs/YYYY-MM-DD.html`.

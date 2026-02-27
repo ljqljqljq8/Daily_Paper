@@ -18,6 +18,13 @@ def _read_int(name: str, default: int) -> int:
     return int(raw)
 
 
+def _read_float(name: str, default: float) -> float:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    return float(raw)
+
+
 def _read_bool(name: str, default: bool = False) -> bool:
     raw = os.getenv(name, "").strip().lower()
     if not raw:
@@ -65,9 +72,23 @@ class Settings:
     ncbi_api_key: str
     serpapi_api_key: str
     report_timezone: str
+    zotero_library_type: str
+    zotero_library_id: str
+    zotero_api_key: str
+    zotero_collection_key: str
+    zotero_max_items: int
+    zotero_seed_query_count: int
+    zotero_seed_terms_per_query: int
+    similarity_threshold: float
+    similarity_min_shared_tokens: int
+    similarity_reference_max: int
 
     def queries_for_source(self, source: str) -> list[str]:
         return self.source_queries.get(source.lower().strip(), [])
+
+    @property
+    def has_zotero_profile(self) -> bool:
+        return bool(self.zotero_library_id)
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -78,9 +99,11 @@ class Settings:
             "pubmed": _split_queries(os.getenv("PUBMED_QUERY", "")) or global_queries,
             "scholar": _split_queries(os.getenv("SCHOLAR_QUERY", "")) or global_queries,
         }
-        if not any(source_queries.values()):
+        zotero_library_id = os.getenv("ZOTERO_LIBRARY_ID", "").strip()
+        if not any(source_queries.values()) and not zotero_library_id:
             raise ValueError(
-                "Missing query config. Set at least one of TOPIC_QUERY, ARXIV_QUERY, MEDRXIV_QUERY, PUBMED_QUERY, SCHOLAR_QUERY."
+                "Missing query config. Set source queries (TOPIC_QUERY/ARXIV_QUERY/MEDRXIV_QUERY/PUBMED_QUERY/SCHOLAR_QUERY) "
+                "or configure Zotero (ZOTERO_LIBRARY_ID)."
             )
 
         merged: list[str] = []
@@ -112,4 +135,14 @@ class Settings:
             ncbi_api_key=os.getenv("NCBI_API_KEY", "").strip(),
             serpapi_api_key=os.getenv("SERPAPI_API_KEY", "").strip(),
             report_timezone=os.getenv("REPORT_TIMEZONE", "Asia/Shanghai").strip(),
+            zotero_library_type=os.getenv("ZOTERO_LIBRARY_TYPE", "user").strip().lower(),
+            zotero_library_id=zotero_library_id,
+            zotero_api_key=os.getenv("ZOTERO_API_KEY", "").strip(),
+            zotero_collection_key=os.getenv("ZOTERO_COLLECTION_KEY", "").strip(),
+            zotero_max_items=_read_int("ZOTERO_MAX_ITEMS", 200),
+            zotero_seed_query_count=_read_int("ZOTERO_SEED_QUERY_COUNT", 6),
+            zotero_seed_terms_per_query=_read_int("ZOTERO_SEED_TERMS_PER_QUERY", 4),
+            similarity_threshold=_read_float("SIMILARITY_THRESHOLD", 0.03),
+            similarity_min_shared_tokens=_read_int("SIMILARITY_MIN_SHARED_TOKENS", 1),
+            similarity_reference_max=_read_int("SIMILARITY_REFERENCE_MAX", 120),
         )

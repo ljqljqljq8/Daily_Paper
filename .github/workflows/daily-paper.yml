@@ -41,6 +41,15 @@ jobs:
           SEND_EMPTY_DIGEST: ${{ vars.SEND_EMPTY_DIGEST }}
           DRY_RUN: ${{ vars.DRY_RUN }}
           USER_AGENT: ${{ vars.USER_AGENT }}
+          ZOTERO_LIBRARY_TYPE: ${{ vars.ZOTERO_LIBRARY_TYPE }}
+          ZOTERO_LIBRARY_ID: ${{ vars.ZOTERO_LIBRARY_ID }}
+          ZOTERO_COLLECTION_KEY: ${{ vars.ZOTERO_COLLECTION_KEY }}
+          ZOTERO_MAX_ITEMS: ${{ vars.ZOTERO_MAX_ITEMS }}
+          ZOTERO_SEED_QUERY_COUNT: ${{ vars.ZOTERO_SEED_QUERY_COUNT }}
+          ZOTERO_SEED_TERMS_PER_QUERY: ${{ vars.ZOTERO_SEED_TERMS_PER_QUERY }}
+          SIMILARITY_THRESHOLD: ${{ vars.SIMILARITY_THRESHOLD }}
+          SIMILARITY_MIN_SHARED_TOKENS: ${{ vars.SIMILARITY_MIN_SHARED_TOKENS }}
+          SIMILARITY_REFERENCE_MAX: ${{ vars.SIMILARITY_REFERENCE_MAX }}
           SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
           SMTP_PORT: ${{ secrets.SMTP_PORT }}
           SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
@@ -49,6 +58,7 @@ jobs:
           EMAIL_RECEIVERS: ${{ secrets.EMAIL_RECEIVERS }}
           NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
           SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+          ZOTERO_API_KEY: ${{ secrets.ZOTERO_API_KEY }}
         run: python main.py
 
       - name: Upload reports

@@ -4,7 +4,7 @@ import requests
 
 from daily_paper.config import Settings
 from daily_paper.models import Paper
-from daily_paper.utils import contains_query, parse_date_best_effort, relevance_score, utc_date_range
+from daily_paper.utils import parse_date_best_effort, relevance_score, utc_date_range
 
 MEDRXIV_DETAILS_API = "https://api.biorxiv.org/details/medrxiv"
 
@@ -40,8 +40,6 @@ def fetch_medrxiv(query: str, settings: Settings) -> list[Paper]:
         for item in collection:
             title = " ".join((item.get("title") or "").split())
             abstract = " ".join((item.get("abstract") or "").split())
-            if not category_expression and not contains_query(query, title, abstract):
-                continue
             authors_raw = item.get("authors", "")
             authors = [a.strip() for a in authors_raw.replace(";", ",").split(",") if a.strip()]
             doi = item.get("doi", "")
