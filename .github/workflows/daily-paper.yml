@@ -1,0 +1,71 @@
+name: Daily Paper Digest
+
+on:
+  schedule:
+    - cron: "30 23 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  run-digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run digest
+        env:
+          TOPIC_QUERY: ${{ vars.TOPIC_QUERY }}
+          ARXIV_QUERY: ${{ vars.ARXIV_QUERY }}
+          MEDRXIV_QUERY: ${{ vars.MEDRXIV_QUERY }}
+          PUBMED_QUERY: ${{ vars.PUBMED_QUERY }}
+          SCHOLAR_QUERY: ${{ vars.SCHOLAR_QUERY }}
+          ENABLE_SOURCES: ${{ vars.ENABLE_SOURCES }}
+          DAYS_BACK: ${{ vars.DAYS_BACK }}
+          MAX_RESULTS_PER_QUERY: ${{ vars.MAX_RESULTS_PER_QUERY }}
+          MAX_TOTAL_RESULTS: ${{ vars.MAX_TOTAL_RESULTS }}
+          REPORT_TIMEZONE: ${{ vars.REPORT_TIMEZONE }}
+          REQUEST_TIMEOUT: ${{ vars.REQUEST_TIMEOUT }}
+          SEND_EMPTY_DIGEST: ${{ vars.SEND_EMPTY_DIGEST }}
+          DRY_RUN: ${{ vars.DRY_RUN }}
+          USER_AGENT: ${{ vars.USER_AGENT }}
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
+          EMAIL_RECEIVERS: ${{ secrets.EMAIL_RECEIVERS }}
+          NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
+          SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+        run: python main.py
+
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-paper-report
+          path: outputs/
+
+      - name: Commit reports to repo (optional)
+        if: ${{ vars.PUSH_REPORT_TO_REPO == 'true' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f outputs/
+          if git diff --cached --quiet; then
+            echo "No report changes"
+          else
+            git commit -m "chore: daily report $(date -u +%F)"
+            git push
+          fi
