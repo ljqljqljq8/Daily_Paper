@@ -73,9 +73,15 @@ Zotero:
 - `SIMILARITY_THRESHOLD=0.03`
 - `SIMILARITY_MIN_SHARED_TOKENS=1`
 - `SIMILARITY_REFERENCE_MAX=120`
+- `SIMILARITY_FALLBACK_TOPN=15`
 
 ## Notes
 
 - If both source query and Zotero are configured, source query controls retrieval scope and Zotero controls similarity filtering.
 - If no papers survive similarity threshold, report can be empty. Use `SEND_EMPTY_DIGEST=true` to still receive email.
 - Reports are saved to `outputs/YYYY-MM-DD.md` and `outputs/YYYY-MM-DD.html`.
+- Check workflow logs for:
+  - `Startup config: ...`
+  - `Loaded X Zotero records for similarity profile.`
+  - `Fetch summary: success_calls=... total_candidates=...`
+  - `After Zotero similarity filtering: Y papers`

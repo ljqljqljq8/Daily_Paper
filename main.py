@@ -77,6 +77,14 @@ def collect_papers(
 
 def main() -> None:
     settings = Settings.from_env()
+    logger.info(
+        "Startup config: sources=%s days_back=%s has_zotero=%s threshold=%.4f fallback_topn=%s",
+        ",".join(settings.enabled_sources),
+        settings.days_back,
+        settings.has_zotero_profile,
+        settings.similarity_threshold,
+        settings.similarity_fallback_topn,
+    )
     date_str = local_date_string(settings.report_timezone)
     output_dir = Path("outputs")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -101,17 +109,37 @@ def main() -> None:
         auto_queries,
         use_profile=bool(zotero_records),
     )
+    logger.info("Fetch summary: success_calls=%d total_candidates=%d", success_fetch_calls, len(raw_papers))
     if success_fetch_calls == 0 and fetch_errors:
         msg = "; ".join(fetch_errors[:3])
         raise RuntimeError(f"All fetch calls failed. First errors: {msg}")
     if zotero_records:
         engine = SimilarityEngine.from_records(zotero_records, reference_max=settings.similarity_reference_max)
+        candidates_before_similarity = list(raw_papers)
         raw_papers = apply_similarity_filter(
             raw_papers,
             engine=engine,
             threshold=settings.similarity_threshold,
             min_shared_tokens=settings.similarity_min_shared_tokens,
         )
+        if not raw_papers:
+            logger.warning(
+                "No papers passed similarity threshold. Fallback: keep top %d by similarity score.",
+                settings.similarity_fallback_topn,
+            )
+            scored: list[Paper] = []
+            for paper in deduplicate_rank_limit(candidates_before_similarity, settings):
+                score, _shared = engine.score(paper.title, paper.abstract)
+                paper.relevance = score
+                scored.append(paper)
+            # If deduplicated list is empty, score from original candidates.
+            if not scored:
+                for paper in candidates_before_similarity:
+                    score, _shared = engine.score(paper.title, paper.abstract)
+                    paper.relevance = score
+                    scored.append(paper)
+            scored.sort(key=lambda p: (p.relevance, p.published), reverse=True)
+            raw_papers = [paper for paper in scored[: settings.similarity_fallback_topn] if paper.relevance > 0]
         logger.info("After Zotero similarity filtering: %d papers", len(raw_papers))
 
     final_papers = deduplicate_rank_limit(raw_papers, settings)

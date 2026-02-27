@@ -82,6 +82,7 @@ class Settings:
     similarity_threshold: float
     similarity_min_shared_tokens: int
     similarity_reference_max: int
+    similarity_fallback_topn: int
 
     def queries_for_source(self, source: str) -> list[str]:
         return self.source_queries.get(source.lower().strip(), [])
@@ -145,4 +146,5 @@ class Settings:
             similarity_threshold=_read_float("SIMILARITY_THRESHOLD", 0.03),
             similarity_min_shared_tokens=_read_int("SIMILARITY_MIN_SHARED_TOKENS", 1),
             similarity_reference_max=_read_int("SIMILARITY_REFERENCE_MAX", 120),
+            similarity_fallback_topn=_read_int("SIMILARITY_FALLBACK_TOPN", 15),
         )

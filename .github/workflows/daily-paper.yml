@@ -50,6 +50,7 @@ jobs:
           SIMILARITY_THRESHOLD: ${{ vars.SIMILARITY_THRESHOLD }}
           SIMILARITY_MIN_SHARED_TOKENS: ${{ vars.SIMILARITY_MIN_SHARED_TOKENS }}
           SIMILARITY_REFERENCE_MAX: ${{ vars.SIMILARITY_REFERENCE_MAX }}
+          SIMILARITY_FALLBACK_TOPN: ${{ vars.SIMILARITY_FALLBACK_TOPN }}
           SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
           SMTP_PORT: ${{ secrets.SMTP_PORT }}
           SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
@@ -59,13 +60,17 @@ jobs:
           NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
           SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
           ZOTERO_API_KEY: ${{ secrets.ZOTERO_API_KEY }}
-        run: python main.py
+        run: |
+          set -o pipefail
+          python main.py 2>&1 | tee run.log
 
       - name: Upload reports
         uses: actions/upload-artifact@v4
         with:
           name: daily-paper-report
-          path: outputs/
+          path: |
+            outputs/
+            run.log
 
       - name: Commit reports to repo (optional)
         if: ${{ vars.PUSH_REPORT_TO_REPO == 'true' }}
