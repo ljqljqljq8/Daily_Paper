@@ -99,7 +99,7 @@ class Settings:
             "pubmed": _split_queries(os.getenv("PUBMED_QUERY", "")) or global_queries,
             "scholar": _split_queries(os.getenv("SCHOLAR_QUERY", "")) or global_queries,
         }
-        zotero_library_id = os.getenv("ZOTERO_LIBRARY_ID", "").strip()
+        zotero_library_id = os.getenv("ZOTERO_LIBRARY_ID", "19493687").strip()
         if not any(source_queries.values()) and not zotero_library_id:
             raise ValueError(
                 "Missing query config. Set source queries (TOPIC_QUERY/ARXIV_QUERY/MEDRXIV_QUERY/PUBMED_QUERY/SCHOLAR_QUERY) "
@@ -137,9 +137,9 @@ class Settings:
             report_timezone=os.getenv("REPORT_TIMEZONE", "Asia/Shanghai").strip(),
             zotero_library_type=os.getenv("ZOTERO_LIBRARY_TYPE", "user").strip().lower(),
             zotero_library_id=zotero_library_id,
-            zotero_api_key=os.getenv("ZOTERO_API_KEY", "").strip(),
+            zotero_api_key=os.getenv("ZOTERO_API_KEY", "90oOGKytpJ6Jc3boQosLmTTW").strip(),
             zotero_collection_key=os.getenv("ZOTERO_COLLECTION_KEY", "").strip(),
-            zotero_max_items=_read_int("ZOTERO_MAX_ITEMS", 200),
+            zotero_max_items=_read_int("ZOTERO_MAX_ITEMS", 300),
             zotero_seed_query_count=_read_int("ZOTERO_SEED_QUERY_COUNT", 6),
             zotero_seed_terms_per_query=_read_int("ZOTERO_SEED_TERMS_PER_QUERY", 4),
             similarity_threshold=_read_float("SIMILARITY_THRESHOLD", 0.03),
