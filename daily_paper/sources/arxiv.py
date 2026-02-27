@@ -34,7 +34,11 @@ def _build_arxiv_search_query(query: str) -> str:
     if ":" not in raw and "+" in raw and " " not in raw:
         parts = [part.strip() for part in raw.split("+") if part.strip()]
         if parts and all(ARXIV_CATEGORY_CODE_RE.match(part) for part in parts):
-            return "+OR+".join(f"cat:{part}" for part in parts)
+            return " OR ".join(f"cat:{part}" for part in parts)
+    if "+" in raw:
+        # arXiv examples commonly use '+' as URL-level separators for operators/space.
+        # requests will encode literal '+' as %2B, so normalize to spaces first.
+        raw = raw.replace("+", " ")
     if any(token in raw for token in ARXIV_ADVANCED_HINTS):
         return raw
     return f"all:{raw}"
