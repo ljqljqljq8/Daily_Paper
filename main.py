@@ -78,12 +78,13 @@ def collect_papers(
 def main() -> None:
     settings = Settings.from_env()
     logger.info(
-        "Startup config: sources=%s days_back=%s has_zotero=%s threshold=%.4f fallback_topn=%s",
+        "Startup config: sources=%s days_back=%s has_zotero=%s threshold=%.4f fallback_topn=%s model=%s",
         ",".join(settings.enabled_sources),
         settings.days_back,
         settings.has_zotero_profile,
         settings.similarity_threshold,
         settings.similarity_fallback_topn,
+        settings.similarity_model_name,
     )
     date_str = local_date_string(settings.report_timezone)
     output_dir = Path("outputs")
@@ -114,7 +115,14 @@ def main() -> None:
         msg = "; ".join(fetch_errors[:3])
         raise RuntimeError(f"All fetch calls failed. First errors: {msg}")
     if zotero_records:
-        engine = SimilarityEngine.from_records(zotero_records, reference_max=settings.similarity_reference_max)
+        engine = SimilarityEngine.from_records(
+            zotero_records,
+            reference_max=settings.similarity_reference_max,
+            model_name=settings.similarity_model_name,
+            score_scale=settings.similarity_score_scale,
+            batch_size=settings.similarity_batch_size,
+        )
+        logger.info("Similarity engine ready: corpus_size=%d model=%s", len(engine.corpus_texts), engine.model_name)
         candidates_before_similarity = list(raw_papers)
         raw_papers = apply_similarity_filter(
             raw_papers,
@@ -127,15 +135,16 @@ def main() -> None:
                 "No papers passed similarity threshold. Fallback: keep top %d by similarity score.",
                 settings.similarity_fallback_topn,
             )
+            deduped_candidates = deduplicate_rank_limit(candidates_before_similarity, settings)
             scored: list[Paper] = []
-            for paper in deduplicate_rank_limit(candidates_before_similarity, settings):
-                score, _shared = engine.score(paper.title, paper.abstract)
+            deduped_scores = engine.score_papers(deduped_candidates)
+            for paper, score in zip(deduped_candidates, deduped_scores):
                 paper.relevance = score
                 scored.append(paper)
             # If deduplicated list is empty, score from original candidates.
             if not scored:
-                for paper in candidates_before_similarity:
-                    score, _shared = engine.score(paper.title, paper.abstract)
+                original_scores = engine.score_papers(candidates_before_similarity)
+                for paper, score in zip(candidates_before_similarity, original_scores):
                     paper.relevance = score
                     scored.append(paper)
             scored.sort(key=lambda p: (p.relevance, p.published), reverse=True)

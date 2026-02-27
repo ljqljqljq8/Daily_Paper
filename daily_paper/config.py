@@ -11,6 +11,11 @@ def _read_required(name: str) -> str:
     return value
 
 
+def _read_str(name: str, default: str) -> str:
+    value = os.getenv(name, "").strip()
+    return value or default
+
+
 def _read_int(name: str, default: int) -> int:
     raw = os.getenv(name, "").strip()
     if not raw:
@@ -33,7 +38,9 @@ def _read_bool(name: str, default: bool = False) -> bool:
 
 
 def _read_list(name: str, default: str) -> list[str]:
-    raw = os.getenv(name, default).strip()
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        raw = default.strip()
     return [part.strip() for part in raw.split(",") if part.strip()]
 
 
@@ -83,6 +90,9 @@ class Settings:
     similarity_min_shared_tokens: int
     similarity_reference_max: int
     similarity_fallback_topn: int
+    similarity_model_name: str
+    similarity_score_scale: float
+    similarity_batch_size: int
 
     def queries_for_source(self, source: str) -> list[str]:
         return self.source_queries.get(source.lower().strip(), [])
@@ -100,7 +110,7 @@ class Settings:
             "pubmed": _split_queries(os.getenv("PUBMED_QUERY", "")) or global_queries,
             "scholar": _split_queries(os.getenv("SCHOLAR_QUERY", "")) or global_queries,
         }
-        zotero_library_id = os.getenv("ZOTERO_LIBRARY_ID", "19493687").strip()
+        zotero_library_id = os.getenv("ZOTERO_LIBRARY_ID", "").strip()
         if not any(source_queries.values()) and not zotero_library_id:
             raise ValueError(
                 "Missing query config. Set source queries (TOPIC_QUERY/ARXIV_QUERY/MEDRXIV_QUERY/PUBMED_QUERY/SCHOLAR_QUERY) "
@@ -126,7 +136,7 @@ class Settings:
             send_empty_digest=_read_bool("SEND_EMPTY_DIGEST", True),
             dry_run=_read_bool("DRY_RUN", False),
             request_timeout=_read_int("REQUEST_TIMEOUT", 20),
-            user_agent=os.getenv("USER_AGENT", "daily-paper-bot/1.0 (+github-action)"),
+            user_agent=_read_str("USER_AGENT", "daily-paper-bot/1.0 (+github-action)"),
             smtp_server=_read_required("SMTP_SERVER"),
             smtp_port=_read_int("SMTP_PORT", 465),
             smtp_username=_read_required("SMTP_USERNAME"),
@@ -135,16 +145,19 @@ class Settings:
             email_receivers=_read_required_list("EMAIL_RECEIVERS"),
             ncbi_api_key=os.getenv("NCBI_API_KEY", "").strip(),
             serpapi_api_key=os.getenv("SERPAPI_API_KEY", "").strip(),
-            report_timezone=os.getenv("REPORT_TIMEZONE", "Asia/Shanghai").strip(),
-            zotero_library_type=os.getenv("ZOTERO_LIBRARY_TYPE", "user").strip().lower(),
+            report_timezone=_read_str("REPORT_TIMEZONE", "Asia/Shanghai"),
+            zotero_library_type=_read_str("ZOTERO_LIBRARY_TYPE", "user").lower(),
             zotero_library_id=zotero_library_id,
-            zotero_api_key=os.getenv("ZOTERO_API_KEY", "90oOGKytpJ6Jc3boQosLmTTW").strip(),
+            zotero_api_key=os.getenv("ZOTERO_API_KEY", "").strip(),
             zotero_collection_key=os.getenv("ZOTERO_COLLECTION_KEY", "").strip(),
             zotero_max_items=_read_int("ZOTERO_MAX_ITEMS", 300),
             zotero_seed_query_count=_read_int("ZOTERO_SEED_QUERY_COUNT", 6),
             zotero_seed_terms_per_query=_read_int("ZOTERO_SEED_TERMS_PER_QUERY", 4),
-            similarity_threshold=_read_float("SIMILARITY_THRESHOLD", 0.03),
+            similarity_threshold=_read_float("SIMILARITY_THRESHOLD", 1.2),
             similarity_min_shared_tokens=_read_int("SIMILARITY_MIN_SHARED_TOKENS", 1),
             similarity_reference_max=_read_int("SIMILARITY_REFERENCE_MAX", 120),
             similarity_fallback_topn=_read_int("SIMILARITY_FALLBACK_TOPN", 15),
+            similarity_model_name=_read_str("SIMILARITY_MODEL_NAME", "avsolatorio/GIST-small-Embedding-v0"),
+            similarity_score_scale=_read_float("SIMILARITY_SCORE_SCALE", 10.0),
+            similarity_batch_size=_read_int("SIMILARITY_BATCH_SIZE", 32),
         )

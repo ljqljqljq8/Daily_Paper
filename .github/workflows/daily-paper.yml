@@ -25,6 +25,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Cache HuggingFace models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ runner.os }}-${{ vars.SIMILARITY_MODEL_NAME }}-v1
+          restore-keys: |
+            hf-${{ runner.os }}-
+
       - name: Run digest
         env:
           TOPIC_QUERY: ${{ vars.TOPIC_QUERY }}
@@ -51,6 +59,9 @@ jobs:
           SIMILARITY_MIN_SHARED_TOKENS: ${{ vars.SIMILARITY_MIN_SHARED_TOKENS }}
           SIMILARITY_REFERENCE_MAX: ${{ vars.SIMILARITY_REFERENCE_MAX }}
           SIMILARITY_FALLBACK_TOPN: ${{ vars.SIMILARITY_FALLBACK_TOPN }}
+          SIMILARITY_MODEL_NAME: ${{ vars.SIMILARITY_MODEL_NAME }}
+          SIMILARITY_SCORE_SCALE: ${{ vars.SIMILARITY_SCORE_SCALE }}
+          SIMILARITY_BATCH_SIZE: ${{ vars.SIMILARITY_BATCH_SIZE }}
           SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
           SMTP_PORT: ${{ secrets.SMTP_PORT }}
           SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}

@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass
+from datetime import datetime, timezone
+
+import numpy as np
 
 from daily_paper.models import Paper
 from daily_paper.utils import tokenize
@@ -95,48 +98,100 @@ def build_seed_queries(records: list[ZoteroRecord], count: int, terms_per_query:
     return merged
 
 
+def _safe_date(dt: datetime | None) -> datetime:
+    if dt is None:
+        return datetime(1970, 1, 1, tzinfo=timezone.utc)
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 @dataclass
 class SimilarityEngine:
-    profile_weights: dict[str, float]
-    reference_sets: list[set[str]]
+    model_name: str
+    corpus_texts: list[str]
+    time_decay_weight: np.ndarray
+    corpus_feature: np.ndarray
+    score_scale: float
+    batch_size: int
+    encoder: object
 
     @classmethod
-    def from_records(cls, records: list[ZoteroRecord], reference_max: int) -> "SimilarityEngine":
-        profile_counter: Counter[str] = Counter()
-        reference_sets: list[set[str]] = []
-        for rec in records:
-            tokens = _filtered_tokens(rec.text)
-            if not tokens:
-                continue
-            profile_counter.update(tokens)
-            if len(reference_sets) < reference_max:
-                reference_sets.append(tokens)
+    def from_records(
+        cls,
+        records: list[ZoteroRecord],
+        reference_max: int,
+        model_name: str,
+        score_scale: float,
+        batch_size: int,
+    ) -> "SimilarityEngine":
+        try:
+            from sentence_transformers import SentenceTransformer
+        except Exception as exc:
+            raise RuntimeError(
+                "sentence-transformers is required for similarity ranking. "
+                "Please ensure dependencies are installed."
+            ) from exc
 
-        total = sum(profile_counter.values()) or 1
-        profile_weights = {token: freq / total for token, freq in profile_counter.items()}
-        return cls(profile_weights=profile_weights, reference_sets=reference_sets)
+        # Align with zotero-arxiv-daily: sort corpus by date (new -> old), then use log-decay weights.
+        ranked = sorted(records, key=lambda r: _safe_date(r.date_added), reverse=True)
+        texts: list[str] = []
+        for rec in ranked:
+            # Upstream uses abstract; keep title fallback for records without abstract.
+            text = (rec.abstract or "").strip() or rec.title.strip()
+            if text:
+                texts.append(text)
+            if len(texts) >= max(reference_max, 1):
+                break
+        if not texts:
+            raise RuntimeError("No usable Zotero text found (title/abstract).")
 
-    def score(self, title: str, abstract: str) -> tuple[float, int]:
-        candidate = _filtered_tokens(f"{title} {abstract}")
-        if not candidate or not self.profile_weights:
-            return 0.0, 0
+        index = np.arange(len(texts), dtype=np.float32)
+        time_decay_weight = 1.0 / (1.0 + np.log10(index + 1.0))
+        time_decay_weight = time_decay_weight / time_decay_weight.sum()
 
-        shared_with_profile = candidate & self.profile_weights.keys()
-        profile_score = sum(self.profile_weights[token] for token in shared_with_profile)
-        max_jaccard = 0.0
-        for ref in self.reference_sets:
-            overlap = len(candidate & ref)
-            if overlap == 0:
-                continue
-            denom = len(candidate | ref)
-            if denom == 0:
-                continue
-            score = overlap / denom
-            if score > max_jaccard:
-                max_jaccard = score
-        # Profile overlap offers broad topic alignment, jaccard catches specific paper-level similarity.
-        combined = profile_score * 0.65 + max_jaccard * 0.35
-        return combined, len(shared_with_profile)
+        encoder = SentenceTransformer(model_name)
+        corpus_feature = encoder.encode(
+            texts,
+            normalize_embeddings=True,
+            convert_to_numpy=True,
+            batch_size=max(batch_size, 8),
+            show_progress_bar=False,
+        )
+        if not isinstance(corpus_feature, np.ndarray):
+            corpus_feature = np.array(corpus_feature, dtype=np.float32)
+
+        return cls(
+            model_name=model_name,
+            corpus_texts=texts,
+            time_decay_weight=time_decay_weight.astype(np.float32),
+            corpus_feature=corpus_feature.astype(np.float32),
+            score_scale=score_scale,
+            batch_size=max(batch_size, 8),
+            encoder=encoder,
+        )
+
+    def _encode_candidates(self, texts: list[str]) -> np.ndarray:
+        features = self.encoder.encode(
+            texts,
+            normalize_embeddings=True,
+            convert_to_numpy=True,
+            batch_size=self.batch_size,
+            show_progress_bar=False,
+        )
+        if not isinstance(features, np.ndarray):
+            features = np.array(features, dtype=np.float32)
+        return features.astype(np.float32)
+
+    def score_papers(self, papers: list[Paper]) -> list[float]:
+        if not papers:
+            return []
+        texts = [((paper.abstract or "").strip() or paper.title.strip()) for paper in papers]
+        candidate_feature = self._encode_candidates(texts)
+        # cosine similarity because embeddings are normalized
+        sim = np.matmul(candidate_feature, self.corpus_feature.T)  # [n_candidate, n_corpus]
+        scores = np.matmul(sim, self.time_decay_weight) * self.score_scale  # [n_candidate]
+        return [float(score) for score in scores]
 
 
 def apply_similarity_filter(
@@ -145,13 +200,15 @@ def apply_similarity_filter(
     threshold: float,
     min_shared_tokens: int,
 ) -> list[Paper]:
+    # min_shared_tokens is retained for compatibility with existing config.
+    del min_shared_tokens
+    if not papers:
+        return []
+
+    scores = engine.score_papers(papers)
     selected: list[Paper] = []
-    for paper in papers:
-        score, shared = engine.score(paper.title, paper.abstract)
-        if shared < min_shared_tokens:
-            continue
-        if score < threshold:
-            continue
+    for paper, score in zip(papers, scores):
         paper.relevance = score
-        selected.append(paper)
+        if score >= threshold:
+            selected.append(paper)
     return selected

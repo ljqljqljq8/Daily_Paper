@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 import requests
 
@@ -16,6 +17,7 @@ class ZoteroRecord:
     creators: list[str]
     publication: str
     year: str
+    date_added: datetime | None
 
     @property
     def text(self) -> str:
@@ -108,6 +110,7 @@ def fetch_zotero_records(settings: Settings) -> list[ZoteroRecord]:
                     creators=creators,
                     publication=(data.get("publicationTitle") or "").strip(),
                     year=(data.get("date") or "").strip(),
+                    date_added=_parse_zotero_datetime((data.get("dateAdded") or "").strip()),
                 )
             )
             if len(records) >= target:
@@ -116,4 +119,13 @@ def fetch_zotero_records(settings: Settings) -> list[ZoteroRecord]:
         if len(items) < limit:
             break
     return records
+
+
+def _parse_zotero_datetime(raw: str) -> datetime | None:
+    if not raw:
+        return None
+    try:
+        return datetime.strptime(raw, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
 

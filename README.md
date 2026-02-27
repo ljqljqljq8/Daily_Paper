@@ -11,6 +11,10 @@ Core logic:
 - Fetch candidate papers from each platform.
 - Rank/filter by similarity to your Zotero profile.
 - Keep manual query support as source scope constraints.
+- Similarity scoring follows `zotero-arxiv-daily` style:
+  - SentenceTransformer embeddings
+  - corpus sorted by Zotero `dateAdded`
+  - time-decay weighted similarity aggregation
 
 ## Retrieval Strategy
 
@@ -70,10 +74,13 @@ Zotero:
 - `ZOTERO_MAX_ITEMS=200`
 - `ZOTERO_SEED_QUERY_COUNT=6`
 - `ZOTERO_SEED_TERMS_PER_QUERY=4`
-- `SIMILARITY_THRESHOLD=0.03`
+- `SIMILARITY_THRESHOLD=1.2`
 - `SIMILARITY_MIN_SHARED_TOKENS=1`
 - `SIMILARITY_REFERENCE_MAX=120`
 - `SIMILARITY_FALLBACK_TOPN=15`
+- `SIMILARITY_MODEL_NAME=avsolatorio/GIST-small-Embedding-v0`
+- `SIMILARITY_SCORE_SCALE=10`
+- `SIMILARITY_BATCH_SIZE=32`
 
 ## Notes
 
