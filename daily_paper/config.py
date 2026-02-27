@@ -99,7 +99,7 @@ class Settings:
             days_back=_read_int("DAYS_BACK", 7),
             max_results_per_query=_read_int("MAX_RESULTS_PER_QUERY", 20),
             max_total_results=_read_int("MAX_TOTAL_RESULTS", 60),
-            send_empty_digest=_read_bool("SEND_EMPTY_DIGEST", Ture),
+            send_empty_digest=_read_bool("SEND_EMPTY_DIGEST", True),
             dry_run=_read_bool("DRY_RUN", False),
             request_timeout=_read_int("REQUEST_TIMEOUT", 20),
             user_agent=os.getenv("USER_AGENT", "daily-paper-bot/1.0 (+github-action)"),
