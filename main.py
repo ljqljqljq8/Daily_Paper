@@ -34,9 +34,15 @@ def _queries_for_source(settings: Settings, source: str, auto_queries: list[str]
     return auto_queries
 
 
-def collect_papers(settings: Settings, auto_queries: list[str], use_profile: bool) -> tuple[list[Paper], list[str]]:
+def collect_papers(
+    settings: Settings,
+    auto_queries: list[str],
+    use_profile: bool,
+) -> tuple[list[Paper], list[str], int, list[str]]:
     all_papers: list[Paper] = []
     used_queries: list[str] = []
+    success_fetch_calls = 0
+    fetch_errors: list[str] = []
     for source_name in settings.enabled_sources:
         key = source_name.lower().strip()
         fetcher = SOURCE_FETCHERS.get(key)
@@ -55,6 +61,7 @@ def collect_papers(settings: Settings, auto_queries: list[str], use_profile: boo
         for query in source_queries:
             try:
                 papers = fetcher(query, settings)
+                success_fetch_calls += 1
                 query_for_log = query or "[zotero-profile-wide]"
                 logger.info("%s -> query=%s fetched=%d", source_name, query_for_log, len(papers))
                 if papers and not query:
@@ -64,7 +71,8 @@ def collect_papers(settings: Settings, auto_queries: list[str], use_profile: boo
                 all_papers.extend(papers)
             except Exception as exc:
                 logger.exception("Fetch failed: source=%s query=%s error=%s", source_name, query, exc)
-    return all_papers, used_queries
+                fetch_errors.append(f"{source_name}::{query or '[zotero-profile-wide]'}::{exc}")
+    return all_papers, used_queries, success_fetch_calls, fetch_errors
 
 
 def main() -> None:
@@ -88,7 +96,14 @@ def main() -> None:
         if auto_queries:
             logger.info("Generated %d auto queries from Zotero profile.", len(auto_queries))
 
-    raw_papers, used_queries = collect_papers(settings, auto_queries, use_profile=bool(zotero_records))
+    raw_papers, used_queries, success_fetch_calls, fetch_errors = collect_papers(
+        settings,
+        auto_queries,
+        use_profile=bool(zotero_records),
+    )
+    if success_fetch_calls == 0 and fetch_errors:
+        msg = "; ".join(fetch_errors[:3])
+        raise RuntimeError(f"All fetch calls failed. First errors: {msg}")
     if zotero_records:
         engine = SimilarityEngine.from_records(zotero_records, reference_max=settings.similarity_reference_max)
         raw_papers = apply_similarity_filter(

@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 import feedparser
 import requests
+from requests import HTTPError
 
 from daily_paper.config import Settings
 from daily_paper.models import Paper
@@ -45,20 +46,43 @@ def _build_arxiv_search_query(query: str) -> str:
 
 
 def fetch_arxiv(query: str, settings: Settings) -> list[Paper]:
+    primary_query = _build_arxiv_search_query(query)
     params = {
-        "search_query": _build_arxiv_search_query(query),
+        "search_query": primary_query,
         "start": 0,
         "max_results": settings.max_results_per_query,
         "sortBy": "submittedDate",
         "sortOrder": "descending",
     }
-    response = requests.get(
-        ARXIV_API_URL,
-        params=params,
-        timeout=settings.request_timeout,
-        headers={"User-Agent": settings.user_agent},
-    )
-    response.raise_for_status()
+    try:
+        response = requests.get(
+            ARXIV_API_URL,
+            params=params,
+            timeout=settings.request_timeout,
+            headers={"User-Agent": settings.user_agent},
+        )
+        response.raise_for_status()
+    except HTTPError as exc:
+        status = exc.response.status_code if exc.response is not None else None
+        fallback_query = f"all:{query.strip().replace('+', ' ')}"
+        if status == 400 and fallback_query != primary_query:
+            fallback_params = {
+                "search_query": fallback_query,
+                "start": 0,
+                "max_results": settings.max_results_per_query,
+                "sortBy": "submittedDate",
+                "sortOrder": "descending",
+            }
+            response = requests.get(
+                ARXIV_API_URL,
+                params=fallback_params,
+                timeout=settings.request_timeout,
+                headers={"User-Agent": settings.user_agent},
+            )
+            response.raise_for_status()
+        else:
+            raise
+
     feed = feedparser.parse(response.text)
     papers: list[Paper] = []
     for entry in feed.entries:
