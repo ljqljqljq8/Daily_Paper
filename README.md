@@ -1,4 +1,4 @@
-# Daily Paper Digest (Zotero Similarity + Multi-source)
+# Daily Paper Digest
 
 This project sends a daily email digest of new papers from:
 - arXiv
